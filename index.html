@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>CTRL — Controle de Cobranças e Juros</title>
+<meta name="description" content="Controle de cobranças, vencimentos e juros com notificações." />
+<meta name="theme-color" content="#0B1220" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="icon" href="icons/icon-192.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Space Grotesk"', 'sans-serif'],
+          body: ['Inter', 'sans-serif'],
+        },
+        colors: {
+          ink: '#0B1220',
+          panel: '#0F1A2E',
+          panel2: '#12213A',
+          line: '#1E3050',
+          mist: '#8FA3C4',
+          teal: '#22D3A5',
+          amber: '#F5B942',
+          coral: '#F87171',
+        },
+        borderRadius: { xl2: '1.25rem' },
+      }
+    }
+  }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  html { -webkit-tap-highlight-color: transparent; }
+  body { background: #0B1220; }
+  .num { font-variant-numeric: tabular-nums; }
+  .card-glow { box-shadow: 0 0 0 1px #1E3050 inset; }
+  ::selection { background: #22D3A5; color: #0B1220; }
+  input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #22D3A5; }
+  .tab-active { color: #0B1220; background: #22D3A5; }
+  .status-dot { width: .5rem; height: .5rem; border-radius: 9999px; display:inline-block; }
+  ::-webkit-scrollbar { height: 6px; width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #1E3050; border-radius: 4px; }
+</style>
+</head>
+<body class="font-body bg-ink text-slate-100 min-h-screen">
+
+<!--login-->
+<div id="auth-screen" class="min-h-screen flex items-center justify-center px-5">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-panel2 card-glow mb-4">
+        <span class="text-teal text-2xl font-display font-bold">%</span>
+      </div>
+      <h1 class="font-display text-2xl font-700 text-white">CTRL</h1>
+      <p class="text-mist text-sm mt-1">Controle de cobranças e juros</p>
+    </div>
+
+    <div class="bg-panel rounded-xl2 card-glow p-6">
+      <div class="flex mb-6 bg-panel2 rounded-xl p-1 text-sm font-medium">
+        <button id="tab-login" class="flex-1 py-2 rounded-lg tab-active transition">Entrar</button>
+        <button id="tab-signup" class="flex-1 py-2 rounded-lg text-mist transition">Criar conta</button>
+      </div>
+
+      <form id="auth-form" class="space-y-3">
+        <div>
+          <label class="text-xs text-mist mb-1 block">E-mail</label>
+          <input id="auth-email" type="email" required placeholder="voce@email.com"
+            class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50" />
+        </div>
+        <div>
+          <label class="text-xs text-mist mb-1 block">Senha</label>
+          <input id="auth-password" type="password" required minlength="6" placeholder="Mínimo 6 caracteres"
+            class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50" />
+        </div>
+        <p id="auth-error" class="text-coral text-xs hidden"></p>
+        <button id="auth-submit" type="submit"
+          class="w-full bg-teal text-ink font-semibold rounded-lg py-2.5 text-sm mt-2 hover:brightness-110 transition">
+          Entrar
+        </button>
+      </form>
+      <p id="auth-hint" class="text-mist text-xs text-center mt-4">Configure suas chaves do Supabase em <code class="text-teal">app.js</code> antes de usar.</p>
+    </div>
+  </div>
+</div>
+
+<!--aplicativo-->
+<div id="app-screen" class="hidden min-h-screen pb-24 md:pb-8">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-30 bg-ink/90 backdrop-blur border-b border-line">
+    <div class="max-w-5xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-panel2 flex items-center justify-center card-glow">
+          <span class="text-teal font-display font-bold">%</span>
+        </div>
+        <div>
+          <h1 class="font-display text-lg font-700 text-white leading-none">CTRL</h1>
+          <p id="user-email-label" class="text-mist text-[11px] mt-0.5"></p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-enable-notif" class="hidden text-xs bg-panel2 border border-line text-mist px-3 py-1.5 rounded-lg hover:text-white transition">
+          🔔 Ativar avisos
+        </button>
+        <button id="btn-logout" class="text-xs text-mist hover:text-coral transition px-2">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Banner de aviso do dia -->
+  <div id="today-banner" class="hidden max-w-5xl mx-auto px-4 md:px-6 mt-4">
+    <div class="bg-amber/10 border border-amber/30 text-amber rounded-xl px-4 py-3 text-sm flex items-start gap-2">
+      <span>⏰</span>
+      <p id="today-banner-text"></p>
+    </div>
+  </div>
+
+  <main class="max-w-5xl mx-auto px-4 md:px-6 mt-6">
+
+    <!-- Totais -->
+    <section class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+      <div class="bg-panel rounded-xl2 card-glow p-4">
+        <p class="text-mist text-xs mb-1">A receber no mês</p>
+        <p id="total-mes" class="font-display text-xl md:text-2xl font-700 text-white num">R$ 0,00</p>
+      </div>
+      <div class="bg-panel rounded-xl2 card-glow p-4">
+        <p class="text-mist text-xs mb-1">Vence hoje</p>
+        <p id="total-hoje" class="font-display text-xl md:text-2xl font-700 text-amber num">R$ 0,00</p>
+      </div>
+      <div class="bg-panel rounded-xl2 card-glow p-4 col-span-2 md:col-span-1">
+        <p class="text-mist text-xs mb-1">Em atraso</p>
+        <p id="total-atrasado" class="font-display text-xl md:text-2xl font-700 text-coral num">R$ 0,00</p>
+      </div>
+    </section>
+
+    <!-- Tabs de navegação -->
+    <nav class="flex gap-2 mb-6 border-b border-line overflow-x-auto">
+      <button data-view="dashboard" class="view-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 border-teal text-white">Cobranças</button>
+      <button data-view="cadastro" class="view-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 border-transparent text-mist hover:text-white transition">Novo devedor</button>
+      <button data-view="calculadora" class="view-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 border-transparent text-mist hover:text-white transition">Calculadora</button>
+    </nav>
+
+    <!--dashboard-->
+    <section id="view-dashboard" class="view-panel space-y-6">
+      <div id="lista-vazia" class="hidden text-center py-16 text-mist">
+        <p class="text-4xl mb-3">📋</p>
+        <p class="text-sm">Nenhuma cobrança cadastrada ainda.</p>
+      </div>
+
+      <div id="grupo-atrasados" class="hidden">
+        <h2 class="text-coral text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <span class="status-dot bg-coral"></span> Atrasados
+        </h2>
+        <div id="lista-atrasados" class="space-y-2"></div>
+      </div>
+
+      <div id="grupo-hoje" class="hidden">
+        <h2 class="text-amber text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <span class="status-dot bg-amber"></span> Vencem hoje
+        </h2>
+        <div id="lista-hoje" class="space-y-2"></div>
+      </div>
+
+      <div id="grupo-futuros" class="hidden">
+        <h2 class="text-teal text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <span class="status-dot bg-teal"></span> Próximos vencimentos
+        </h2>
+        <div id="lista-futuros" class="space-y-2"></div>
+      </div>
+
+      <div id="grupo-pagos" class="hidden">
+        <button id="toggle-pagos" class="text-mist text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <span class="status-dot bg-mist"></span> Pagos <span id="count-pagos" class="text-mist/60"></span> ▾
+        </button>
+        <div id="lista-pagos" class="space-y-2 hidden"></div>
+      </div>
+    </section>
+
+    <!--Cadastro-->
+    <section id="view-cadastro" class="view-panel hidden max-w-lg">
+      <form id="form-cadastro" class="bg-panel rounded-xl2 card-glow p-5 space-y-4">
+        <h2 class="font-display text-lg font-600 text-white mb-1">Cadastrar devedor</h2>
+
+        <div>
+          <label class="text-xs text-mist mb-1 block">Nome *</label>
+          <input name="nome_devedor" required placeholder="Ex: João da Silva"
+            class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50" />
+        </div>
+
+        <div>
+          <label class="text-xs text-mist mb-1 block">Telefone (com DDD)</label>
+          <input name="telefone" placeholder="(81) 99999-9999"
+            class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-mist mb-1 block">Valor devido (R$) *</label>
+            <input name="valor_original" type="number" min="0" step="0.01" required placeholder="0,00"
+              class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50" />
+          </div>
+          <div>
+            <label class="text-xs text-mist mb-1 block">Juros (% ao mês)</label>
+            <input name="taxa_juros" type="number" min="0" step="0.01" value="0" placeholder="Ex: 5"
+              class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50" />
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs text-mist mb-1 block">Data de vencimento *</label>
+          <input name="data_vencimento" type="date" required
+            class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white" />
+        </div>
+
+        <div>
+          <label class="text-xs text-mist mb-1 block">Observações</label>
+          <textarea name="observacoes" rows="3" placeholder="Detalhes, combinados, etc."
+            class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50 resize-none"></textarea>
+        </div>
+
+        <p id="cadastro-msg" class="text-xs hidden"></p>
+
+        <button type="submit" class="w-full bg-teal text-ink font-semibold rounded-lg py-2.5 text-sm hover:brightness-110 transition">
+          Salvar devedor
+        </button>
+      </form>
+    </section>
+
+    <!--CALCULADORA-->
+    <section id="view-calculadora" class="view-panel hidden max-w-lg">
+      <div class="bg-panel rounded-xl2 card-glow p-5 space-y-4">
+        <h2 class="font-display text-lg font-600 text-white mb-1">Calculadora de juros simples</h2>
+        <p class="text-mist text-xs -mt-2">Fórmula: juros = valor × (taxa/100) × (dias/30)</p>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-mist mb-1 block">Valor (R$)</label>
+            <input id="calc-valor" type="number" min="0" step="0.01" placeholder="0,00"
+              class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50" />
+          </div>
+          <div>
+            <label class="text-xs text-mist mb-1 block">Taxa (% ao mês)</label>
+            <input id="calc-taxa" type="number" min="0" step="0.01" placeholder="Ex: 5"
+              class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50" />
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-mist mb-1 block">Dias em atraso</label>
+          <input id="calc-dias" type="number" min="0" step="1" placeholder="0"
+            class="w-full bg-panel2 border border-line rounded-lg px-3 py-2.5 text-sm text-white placeholder-mist/50" />
+        </div>
+
+        <div class="border-t border-line pt-4 space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-mist">Juros calculados</span>
+            <span id="calc-juros" class="text-amber font-semibold num">R$ 0,00</span>
+          </div>
+          <div class="flex justify-between text-base">
+            <span class="text-white font-medium">Total atualizado</span>
+            <span id="calc-total" class="text-teal font-display font-700 num">R$ 0,00</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Nav mobile inferior -->
+  <nav class="md:hidden fixed bottom-0 inset-x-0 bg-panel border-t border-line flex z-30">
+    <button data-view="dashboard" class="mnav-tab flex-1 py-3 text-center text-xs text-white">📋<br/>Cobranças</button>
+    <button data-view="cadastro" class="mnav-tab flex-1 py-3 text-center text-xs text-mist">➕<br/>Novo</button>
+    <button data-view="calculadora" class="mnav-tab flex-1 py-3 text-center text-xs text-mist">🧮<br/>Calculadora</button>
+  </nav>
+</div>
+
+<!-- Template de item da lista (clonado via JS) -->
+<template id="item-template">
+  <div class="cobranca-item bg-panel rounded-xl card-glow p-4 flex items-center justify-between gap-3">
+    <div class="min-w-0">
+      <p class="item-nome text-white font-medium text-sm truncate"></p>
+      <p class="item-sub text-mist text-xs mt-0.5"></p>
+    </div>
+    <div class="text-right shrink-0">
+      <p class="item-valor text-white font-display font-700 text-sm num"></p>
+      <p class="item-original text-mist text-[11px] num"></p>
+      <button class="item-pagar mt-1 text-[11px] bg-teal/15 text-teal px-2.5 py-1 rounded-md hover:bg-teal hover:text-ink transition">
+        Marcar como pago
+      </button>
+    </div>
+  </div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
